@@ -30,3 +30,7 @@ nbdist/
 
 server/src/main/cache/
 server/src/main/file/
+
+### local build artifacts (kept out of git) ###
+deploy/kkfileview-base/kkfileview-base.tar
+docker/kkfileview-base/

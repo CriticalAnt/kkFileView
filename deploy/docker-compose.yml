@@ -1,0 +1,21 @@
+services:
+  kkfileview:
+    image: keking/kkfileview:5.0.0
+    hostname: "fileview"
+    ports:
+      - 8013:8013
+    environment:
+      # 服务端口
+      KK_SERVER_PORT: 8013
+      # 请求前缀
+      KK_CONTEXT_PATH: /
+      KK_BASE_URL: http://SERVER_IP:8013
+      KK_FILE_DIR: /opt/files
+      # 开启文件上传
+      KK_FILE_UPLOAD_DISABLE: false
+      KK_TRUST_HOST: "*"
+    volumes:
+      - /opt/kkfileview/files:/opt/files
+    privileged: true
+    restart: always
+
