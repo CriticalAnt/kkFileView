@@ -11,6 +11,7 @@ import cn.keking.utils.WebUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.util.ObjectUtils;
+import org.springframework.util.StringUtils;
 import org.springframework.util.StreamUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,9 +30,12 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.*;
 
 import static cn.keking.utils.CaptchaUtil.CAPTCHA_CODE;
@@ -217,7 +221,7 @@ public class FileController {
         }
     }
 
-    @GetMapping("/deleteFile")
+    @PostMapping("/deleteFile")
     public ReturnResponse<Object> deleteFile(HttpServletRequest request, String fileName, String password) {
         ReturnResponse<Object> checkResult = this.deleteFileCheck(request, fileName, password);
         if (checkResult.isFailure()) {
@@ -341,13 +345,23 @@ public class FileController {
             }
 
             // ==================== 2. 构建路径和验证 ====================
-            String basePath = fileDir + demoPath;
-            if (!ObjectUtils.isEmpty(path)) {
-                basePath += path + File.separator;
+            Path currentDir;
+            try {
+                currentDir = resolveDirectoryUnderRoot(Paths.get(fileDir, demoDir), path);
+            } catch (InvalidPathException | SecurityException e) {
+                logger.warn("拒绝访问 demo 目录之外的文件列表路径");
+                result.put("total", 0);
+                result.put("data", Collections.emptyList());
+                result.put("error", "非法目录路径");
+                return result;
+            } catch (IOException e) {
+                logger.error("解析 demo 目录失败", e);
+                result.put("total", 0);
+                result.put("data", Collections.emptyList());
+                return result;
             }
 
-            File currentDir = new File(basePath);
-            if (!currentDir.exists() || !currentDir.isDirectory()) {
+            if (!Files.isDirectory(currentDir)) {
                 result.put("total", 0);
                 result.put("data", Collections.emptyList());
                 return result;
@@ -357,13 +371,13 @@ public class FileController {
             List<Path> allPaths = new ArrayList<>();
             long collectStartTime = System.currentTimeMillis();
 
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(Paths.get(basePath))) {
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(currentDir)) {
                 for (Path entry : stream) {
                     allPaths.add(entry);
                     stats.incrementFileCount();
                 }
             } catch (IOException e) {
-                logger.error("读取目录失败: {}", basePath, e);
+                logger.error("读取目录失败: {}", currentDir, e);
                 result.put("total", 0);
                 result.put("data", Collections.emptyList());
                 return result;
@@ -490,6 +504,46 @@ public class FileController {
         }
 
         return result;
+    }
+
+    /**
+     * Resolve an existing directory below the configured demo root.
+     *
+     * <p>Both lexical normalization and real-path checks are required: the
+     * former blocks traversal and absolute paths, while the latter prevents a
+     * symlink inside the demo directory from escaping the configured root.</p>
+     */
+    static Path resolveDirectoryUnderRoot(Path root, String requestedPath) throws IOException {
+        Path normalizedRoot = root.toAbsolutePath().normalize();
+        String relativePath = requestedPath == null ? "" : requestedPath.replace('\\', '/');
+
+        if (relativePath.indexOf('\0') >= 0
+                || relativePath.startsWith("/")
+                || relativePath.matches("^[A-Za-z]:.*")) {
+            throw new SecurityException("Absolute paths are not allowed");
+        }
+
+        Path relative = Paths.get(relativePath);
+        if (relative.isAbsolute()) {
+            throw new SecurityException("Absolute paths are not allowed");
+        }
+        for (Path segment : relative) {
+            if ("..".equals(segment.toString())) {
+                throw new SecurityException("Parent path segments are not allowed");
+            }
+        }
+
+        Path resolved = normalizedRoot.resolve(relative).normalize();
+        if (!resolved.startsWith(normalizedRoot)) {
+            throw new SecurityException("Path escapes the configured root");
+        }
+
+        Path realRoot = normalizedRoot.toRealPath();
+        Path realResolved = resolved.toRealPath();
+        if (!realResolved.startsWith(realRoot)) {
+            throw new SecurityException("Path escapes the configured root through a symbolic link");
+        }
+        return realResolved;
     }
 
     /**
@@ -724,11 +778,22 @@ public class FileController {
             return ReturnResponse.failure("密码 or 验证码为空，删除失败！");
         }
 
-        String expectedPassword = ConfigConstants.getDeleteCaptcha() ?
+        boolean captchaEnabled = ConfigConstants.getDeleteCaptcha();
+        String expectedPassword = captchaEnabled ?
                 WebUtils.getSessionAttr(request, CAPTCHA_CODE) :
                 ConfigConstants.getPassword();
 
-        if (!password.equalsIgnoreCase(expectedPassword)) {
+        if (!captchaEnabled && (!StringUtils.hasText(expectedPassword)
+                || "false".equalsIgnoreCase(expectedPassword))) {
+            return ReturnResponse.failure("文件删除接口已禁用，请先配置 delete.password");
+        }
+
+        if (!StringUtils.hasText(expectedPassword)) {
+            return ReturnResponse.failure("验证码已失效，请刷新后重试！");
+        }
+
+        if (!MessageDigest.isEqual(password.getBytes(StandardCharsets.UTF_8),
+                expectedPassword.getBytes(StandardCharsets.UTF_8))) {
             logger.error("删除文件【{}】失败，密码错误！", fileName);
             return ReturnResponse.failure("删除文件失败，密码错误！");
         }

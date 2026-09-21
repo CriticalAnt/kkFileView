@@ -41,10 +41,10 @@
                     你可以先看最新版本的升级重点，再顺着时间轴继续了解历史版本细节。
                 </p>
                 <div class="release-badge-row">
-                    <span class="tag highlight">最新版本 v5.0.0</span>
-                    <span class="tag brand">发布日期 2026-04-14</span>
+                    <span class="tag highlight">最新版本 v5.0.2</span>
+                    <span class="tag brand">发布日期 2026-08-14</span>
                     <span class="tag warn">JDK 21+ 强制要求</span>
-                    <span class="tag">压缩包工作区预览 / PDF 默认模式</span>
+                    <span class="tag">安全补丁 / HTML、文件删除、PDF 转图修复</span>
                 </div>
             </div>
         </section>
@@ -53,10 +53,91 @@
             <div class="timeline-year">2026</div>
             <div class="timeline-list">
                 <article class="release-card">
+                    <h3>v5.0.2</h3>
+                    <div class="release-meta">
+                        <span class="tag brand">2026-08-14</span>
+                        <span class="tag highlight">最新稳定版本</span>
+                        <span class="tag warn">建议尽快升级</span>
+                    </div>
+                    <div class="release-columns">
+                        <div class="release-group">
+                            <h4>安全修复</h4>
+                            <ul class="release-list">
+                                <li>HTML 文件改在不具有同源权限的 iframe 沙箱中预览，并默认禁用 JavaScript。</li>
+                                <li>文件删除接口默认禁用，改用 POST，并要求显式配置密码后进行精确比较。</li>
+                            </ul>
+                        </div>
+                        <div class="release-group">
+                            <h4>修复</h4>
+                            <ul class="release-list">
+                                <li>刷新 ImageIO 插件，修复 PDF 转图片预览时 JBIG2 等图像读取器未被发现导致的图片丢失。</li>
+                            </ul>
+                        </div>
+                        <div class="release-group">
+                            <h4>配置调整</h4>
+                            <ul class="release-list">
+                                <li><code>delete.password</code> 默认改为 <code>false</code>。</li>
+                                <li><code>kk.scriptjs</code> 默认改为 <code>false</code>，启用后仍保持沙箱隔离。</li>
+                            </ul>
+                        </div>
+                        <div class="release-group">
+                            <h4>升级重点</h4>
+                            <ul class="release-list">
+                                <li>建议所有 v5.0.1 及更早版本用户尽快升级。</li>
+                                <li>继续要求 JDK 21 及以上，现有配置可直接沿用。</li>
+                                <li>如需删除功能，请配置独立强密码，并将调用方式改为 POST。</li>
+                            </ul>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="release-card">
+                    <h3>v5.0.1</h3>
+                    <div class="release-meta">
+                        <span class="tag brand">2026-07-13</span>
+                        <span class="tag">上一补丁版本</span>
+                        <span class="tag warn">建议尽快升级</span>
+                    </div>
+                    <div class="release-columns">
+                        <div class="release-group">
+                            <h4>安全修复</h4>
+                            <ul class="release-list">
+                                <li>修复 <code>/addTask</code> 未覆盖信任主机和本地目录过滤导致的 SSRF 风险。</li>
+                                <li>修复 <code>/listFiles</code> 可越出演示目录导致的路径遍历和目录信息泄露。</li>
+                            </ul>
+                        </div>
+                        <div class="release-group">
+                            <h4>修复</h4>
+                            <ul class="release-list">
+                                <li>修复 PDF 跨域、页码、高亮、打印、打印水印及反向代理路径问题。</li>
+                                <li>修复 Redis 多种运行模式的配置兼容问题。</li>
+                                <li>修复 HTTP 错误处理、共享 Client 生命周期和 xlsx 数据校验解析问题。</li>
+                            </ul>
+                        </div>
+                        <div class="release-group">
+                            <h4>优化</h4>
+                            <ul class="release-list">
+                                <li>大型 xlsx 文件使用 Web Worker 解析，并保留主线程自动回退。</li>
+                                <li>新增 <code>pdf.sidebar.open</code>，支持配置 PDF 默认侧栏状态。</li>
+                                <li>Maven CI 增加 Linux、Windows、macOS 构建验证。</li>
+                            </ul>
+                        </div>
+                        <div class="release-group">
+                            <h4>升级重点</h4>
+                            <ul class="release-list">
+                                <li>建议所有 v5.0.0 及更早版本用户尽快升级。</li>
+                                <li>继续要求 JDK 21 及以上。</li>
+                                <li>现有 v5.0.0 配置可直接沿用。</li>
+                            </ul>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="release-card">
                     <h3>v5.0.0</h3>
                     <div class="release-meta">
                         <span class="tag brand">2026-04-14</span>
-                        <span class="tag highlight">最新稳定版本</span>
+                        <span class="tag">5.0 功能版本</span>
                         <span class="tag warn">升级需 JDK 21+</span>
                     </div>
                     <div class="release-columns">

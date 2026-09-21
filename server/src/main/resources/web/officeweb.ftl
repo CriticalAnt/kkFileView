@@ -205,37 +205,40 @@
     // 异步加载Excel文件
     async function loadTextAsync() {
         if (isLoading) return;
-        
+
         isLoading = true;
         updateProgress(10);
-        
+
         try {
             initWaterMark();
-            
+
             const value = url;
             const name = '${file.name}';
-            
+
             if (!value) {
                 showError('文件URL为空');
                 return;
             }
 
             updateProgress(30);
-            
+
             // 使用异步方式加载
             await new Promise(resolve => setTimeout(resolve, 100)); // 给UI更新一点时间
-            
-            // 或者使用现有的同步方法，但放在setTimeout中避免阻塞
-            await transformWithTimeout(value, name);
-            
+
+            const exportJson = await transformWithWorker(value, name);
+
+            updateProgress(80);
+
+            await createLuckysheet(exportJson);
+
             updateProgress(100);
-            
+
             // 延迟隐藏加载界面，让用户看到加载完成
             setTimeout(() => {
                 hideLoading();
                 isLoading = false;
             }, 500);
-            
+
         } catch (error) {
             console.error('加载Excel失败:', error);
             showError('加载失败: ' + error.message);
@@ -243,35 +246,93 @@
         }
     }
 
-    // 使用setTimeout将同步任务拆分
-    function transformWithTimeout(value, name) {
+    function transformWithWorker(value, name) {
         return new Promise((resolve, reject) => {
             updateProgress(50);
-            
-            // 将转换过程放在setTimeout中，避免阻塞主线程
-            setTimeout(() => {
+
+            if (!window.Worker) {
+                transformOnMainThread(value, name, resolve, reject);
+                return;
+            }
+
+            let worker;
+            try {
+                worker = new Worker('xlsx/luckyexcel-worker.js');
+            } catch (error) {
+                transformOnMainThread(value, name, resolve, reject);
+                return;
+            }
+
+            let settled = false;
+            const fallbackToMainThread = function(error) {
+                if (settled) {
+                    return;
+                }
+                settled = true;
+                worker.terminate();
+                if (error) {
+                    console.warn('Excel Worker转换失败，回退主线程转换:', error);
+                }
+                transformOnMainThread(value, name, resolve, reject);
+            };
+
+            worker.onmessage = function(event) {
+                const data = event.data || {};
+
+                if (data.type === 'success') {
+                    settled = true;
+                    worker.terminate();
+                    resolve(data.exportJson);
+                    return;
+                }
+
+                if (data.type === 'error') {
+                    fallbackToMainThread(data.message || 'Excel转换失败');
+                }
+            };
+
+            worker.onerror = function(error) {
+                fallbackToMainThread(error && error.message ? error.message : error);
+            };
+
+            worker.postMessage({
+                url: value,
+                name: name
+            });
+        });
+    }
+
+    function transformOnMainThread(value, name, resolve, reject) {
+        try {
+            LuckyExcel.transformExcelToLuckyByUrl(value, name, function(exportJson, luckysheetfile) {
+                if (!exportJson || !exportJson.sheets || exportJson.sheets.length === 0) {
+                    reject(new Error("读取excel文件内容失败!"));
+                    return;
+                }
+
+                resolve(exportJson);
+            }, function(error) {
+                reject(error);
+            });
+        } catch (error) {
+            reject(error);
+        }
+    }
+
+    function createLuckysheet(exportJson) {
+        return new Promise((resolve, reject) => {
+            requestAnimationFrame(() => {
                 try {
-                    LuckyExcel.transformExcelToLuckyByUrl(value, name, function(exportJson, luckysheetfile){
-                        if(exportJson.sheets==null || exportJson.sheets.length==0){
-                            reject(new Error("读取excel文件内容失败!"));
-                            return;
-                        }
-                        
-                        updateProgress(80);
-                        
-                        // 使用requestAnimationFrame来更新UI，避免阻塞
-                        requestAnimationFrame(() => {
-                            try {
-                                window.luckysheet.destroy();
-                                window.luckysheet.create({
-                                    container: 'luckysheet',
-                                    lang: "zh",
-                                    showtoolbarConfig:{
-                                        image: true,
-                                        print: true,
-                                        exportXlsx: true,
-                                    },
-                                   allowCopy: true, // 是否允许拷贝
+                    window.luckysheet.destroy();
+                    window.luckysheet.create({
+                        container: 'luckysheet',
+                        lang: "zh",
+                        showtoolbarConfig:{
+                            image: true,
+                            print: true,
+                            exportXlsx: true,
+                        },
+                        allowCopy: true, // 是否允许拷贝
                 showtoolbar:  ${xlsxshowtoolbar?string('true','false')},  // 是否显示工具栏
                 showinfobar: true, // 是否显示顶部信息栏
                 // myFolderUrl: "/",//作用：左上角<返回按钮的链接
@@ -287,29 +348,23 @@
                 sheetFormulaBar: false, // 是否显示公式栏
                 enableAddBackTop: true,//返回头部按钮
                 forceCalculation: false, //下面是导出插件 默认关闭
-                                    data: exportJson.sheets,
-                                    title: exportJson.info.name,
-                                    userInfo: exportJson.info.name.creator,
-                                    // 添加加载完成的回调
-                                    hook: {
-                                        workbookCreateAfter: function() {
-                                            resolve();
-                                        }
-                                    }
-                                });
-                                
-                                updateProgress(90);
-                                
-                            } catch (err) {
-                                reject(err);
+                        data: exportJson.sheets,
+                        title: exportJson.info.name,
+                        userInfo: exportJson.info.name.creator,
+                        // 添加加载完成的回调
+                        hook: {
+                            workbookCreateAfter: function() {
+                                resolve();
                             }
-                        });
+                        }
                     });
-                    
-                } catch (error) {
-                    reject(error);
+
+                    updateProgress(90);
+
+                } catch (err) {
+                    reject(err);
                 }
-            }, 100);
+            });
         });
     }
 

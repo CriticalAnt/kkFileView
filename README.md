@@ -65,6 +65,44 @@ URL：[https://file.kkview.cn](https://file.kkview.cn)
 
 ## Change History
 
+### Version 5.0.2 (August 14, 2026)
+
+#### Security Fixes
+1. Sandboxed untrusted HTML previews in an opaque-origin iframe and disabled embedded JavaScript by default, preventing previewed files from executing in the kkFileView application origin (GHSA-9wcf-jxxf-w2g2)
+2. Disabled the demo file deletion endpoint by default, changed it to POST, and required an explicitly configured password with exact comparison (GHSA-f3qx-xrwc-5428)
+
+#### Fixes
+1. Refreshed ImageIO plugins when PDF conversion starts so nested JAR providers such as the JBIG2 reader are discovered, preventing images from disappearing in PDF-to-image previews
+
+#### Upgrade Notes
+1. All users running v5.0.1 or earlier are strongly encouraged to upgrade to v5.0.2
+2. JDK 21 or higher remains required, and existing v5.0.1 configuration can be reused
+3. File deletion is now disabled unless `KK_DELETE_PASSWORD` or an external `delete.password` is set to an independent strong password; integrations must call `/deleteFile` with POST
+4. `kk.scriptjs` now defaults to `false`; when explicitly enabled, scripts still run only inside the isolated iframe sandbox
+
+### Version 5.0.1 (July 13, 2026)
+
+#### Security Fixes
+1. Fixed `/addTask` bypassing trusted-host and local-directory filters, which could allow server-side request forgery (SSRF) (GHSA-gwwj-52hv-6g2m)
+2. Fixed the `/listFiles` `directory` parameter escaping the demo directory, which could allow path traversal and directory information disclosure (GHSA-pmp8-g8p2-p6jq)
+
+#### Fixes
+1. Fixed PDF cross-origin access, page positioning, text highlighting, printing, and print watermark issues
+2. Fixed PDF absolute paths behind reverse proxies and parsing failures when watermark or highlight text contains special characters
+3. Fixed inconsistent Redis settings across standalone, cluster, master-replica, and sentinel modes, including missing address protocols
+4. Fixed successful responses after MIME validation failures, unclear HTTP error reporting, and accidental closure of a shared HTTP client
+5. Fixed xlsx parsing crashes when LuckyExcel data-validation types have no mapping
+
+#### Improvements
+1. Moved LuckyExcel parsing for large xlsx files into a Web Worker, with automatic main-thread fallback when the Worker is unavailable or fails
+2. Added `pdf.sidebar.open` to control whether the PDF sidebar opens by default
+3. Added Linux, Windows, and macOS validation to Maven CI
+4. Added a repository security policy and private vulnerability reporting guidance
+
+#### Upgrade Notes
+1. All users running v5.0.0 or earlier are strongly encouraged to upgrade to v5.0.1
+2. JDK 21 or higher remains required, and existing v5.0.0 configuration can be reused
+
 ### Version 5.0.0 (April 14, 2026)
 
 #### Improvements
