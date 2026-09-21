@@ -1,6 +1,7 @@
 services:
   kkfileview:
-    image: keking/kkfileview:5.0.0
+    # 自建镜像，按 DEPLOY.md 第三步构建；避免使用官方同名 tag 造成混淆
+    image: kkfileview-custom:5.0.2
     hostname: "fileview"
     ports:
       - 8013:8013

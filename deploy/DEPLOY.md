@@ -1,6 +1,6 @@
-# kkFileView 5.0.0 部署文档
+# kkFileView 部署文档
 
-从源码构建到 Docker 部署的完整流程。
+从源码构建到 Docker 部署的完整流程。本文档基于 `custom` 分支（跟随官方版本并包含本地定制）。
 
 ## 环境要求
 
@@ -15,28 +15,32 @@
 
 ```
 deploy/
-├── Dockerfile                  # kkFileView 应用镜像
+├── Dockerfile                  # kkFileView 应用镜像（版本无关，升级无需修改）
 ├── docker-compose.yml          # 编排配置
 ├── kkfileview-base/
 │   ├── Dockerfile              # 基础镜像（JDK 21 + LibreOffice + 中文字体）
+│   ├── 99-cjk-aliases.conf     # GB2312 旧字体名映射
 │   ├── fonts/                  # 自定义中文字体目录
-│   └── kkfileview-base.tar    # 基础镜像导出文件（需自行构建生成）
+│   └── kkfileview-base.tar    # 基础镜像导出文件（不入库，需自行构建生成）
 └── DEPLOY.md                   # 本文档
 ```
 
 ## 第一步：编译项目
 
-在项目根目录执行：
+在 `custom` 分支的项目根目录执行：
 
 ```shell
+git checkout custom
 mvn clean package -DskipTests
 ```
 
-构建产物位于 `server/target/kkFileView-5.0.0.tar.gz`。
+构建产物位于 `server/target/kkFileView-<版本号>.tar.gz`（版本号随 pom，当前为 5.0.2）。
 
 ## 第二步：构建基础镜像
 
-基础镜像包含 JDK 21、LibreOffice、中文字体等运行时依赖，变更频率低，通常只需构建一次。
+基础镜像包含 JDK 21、LibreOffice、中文字体等运行时依赖，与应用版本无关，通常只需构建一次；官方发版升级应用时无需重建。
+
+tag 以 `5.0.0` 为例，仅为标记，不必跟随应用版本号。
 
 ### amd64 架构
 
@@ -79,19 +83,29 @@ docker buildx build --platform=linux/amd64,linux/arm64 -t keking/kkfileview-base
 docker save keking/kkfileview-base:5.0.0 -o kkfileview-base.tar
 ```
 
+在部署服务器上导入：
+
+```shell
+docker load -i kkfileview-base.tar
+```
+
 ## 第三步：构建应用镜像
 
 将编译产物复制到 deploy 目录，然后构建：
 
 ```shell
-cp server/target/kkFileView-5.0.0.tar.gz deploy/
+cp server/target/kkFileView-*.tar.gz deploy/
 cd deploy
-docker build --tag keking/kkfileview:5.0.0 .
+docker build --tag kkfileview-custom:5.0.2 .
 ```
+
+> ⚠️ deploy 目录内**只保留一份** `kkFileView-*.tar.gz`：旧版本产物先删除再复制新版本，否则 Dockerfile 中的通配符会匹配到多个文件导致构建失败。
+>
+> ⚠️ 镜像 tag 使用自有命名 `kkfileview-custom:<版本>`，不要使用官方 `keking/kkfileview:*` 同名 tag，避免与 Docker Hub 官方镜像混淆。
 
 ## 第四步：启动服务
 
-修改 `docker-compose.yml` 中的配置后启动：
+确认 `docker-compose.yml` 中镜像 tag 与上一步构建的一致，然后启动：
 
 ```shell
 docker compose up -d
@@ -102,15 +116,21 @@ docker compose up -d
 ```yaml
 services:
   kkfileview:
-    image: keking/kkfileview:5.0.0
+    image: kkfileview-custom:5.0.2          # 第三步构建的自建镜像
     hostname: "fileview"
     ports:
       - 8013:8013
     environment:
-      KK_SERVER_PORT: 8013                          # 服务端口
-      KK_CONTEXT_PATH: /                            # 请求前缀
-      KK_BASE_URL: http://<你的服务器IP>:8013       # 预览服务地址（反向代理时必填）
-      KK_FILE_DIR: /opt/files                       # 预览生成资源存储路径
+      # 服务端口
+      KK_SERVER_PORT: 8013
+      # 请求前缀
+      KK_CONTEXT_PATH: /
+      KK_BASE_URL: http://<你的服务器IP>:8013
+      KK_FILE_DIR: /opt/files
+      # 开启文件上传
+      KK_FILE_UPLOAD_DISABLE: false
+      # 信任站点白名单（* 为全部信任，生产环境建议配置具体主机）
+      KK_TRUST_HOST: "*"
     volumes:
       - /opt/kkfileview/files:/opt/files             # 持久化缓存目录
     privileged: true
@@ -118,6 +138,31 @@ services:
 ```
 
 根据实际情况修改 `KK_BASE_URL` 和端口映射。
+
+## 升级流程（跟随官方新版本）
+
+仓库采用双分支模型：`master` 纯镜像跟随官方，`custom` 包含全部本地定制。官方发版后：
+
+```shell
+# 1. 本地跟进官方
+git checkout master
+git fetch upstream
+git merge --ff-only v<新版本号>
+git checkout custom
+git merge master          # 冲突一般只在 main/index.ftl，保留 custom 版本
+git push origin master custom
+
+# 2. 重新构建部署
+mvn clean package -DskipTests
+rm deploy/kkFileView-*.tar.gz                     # 清理旧产物
+cp server/target/kkFileView-<新版本号>.tar.gz deploy/
+cd deploy
+docker build --tag kkfileview-custom:<新版本号> .
+# 修改 docker-compose.yml 中 image 的 tag 后
+docker compose up -d
+```
+
+基础镜像（第二步）无需重建；`deploy/Dockerfile` 已做成版本无关，无需修改。
 
 ## 常用环境变量
 
@@ -147,7 +192,7 @@ services:
 
 **Q: Office 文档预览乱码**
 
-基础镜像已内置常用中文字体（文泉驿微米黑、文泉驿正黑）。如需额外字体，将 `.ttf`/`.ttc` 文件放入 `kkfileview-base/fonts/` 目录后重新构建基础镜像。
+基础镜像已内置常用中文字体（宋体、微软雅黑、黑体、楷体、仿宋及文泉驿系列）。如需额外字体，将 `.ttf`/`.ttc` 文件放入 `kkfileview-base/fonts/` 目录后重新构建基础镜像。
 
 **Q: 反向代理后预览失败**
 
