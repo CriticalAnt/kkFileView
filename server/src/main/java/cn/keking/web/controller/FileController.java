@@ -172,7 +172,7 @@ public class FileController {
         try (InputStream in = file.getInputStream();
              OutputStream out = Files.newOutputStream(Paths.get(uploadPath + fileName))) {
             StreamUtils.copy(in, out);
-            return ReturnResponse.success(null);
+            return ReturnResponse.success(demoDir + "/" + (ObjectUtils.isEmpty(path) ? "" : path + "/") + fileName);
         } catch (IOException e) {
             logger.error("文件上传失败", e);
             return ReturnResponse.failure("文件上传失败");
