@@ -13,7 +13,9 @@ services:
       KK_SERVER_PORT: 8013
       # 请求前缀
       KK_CONTEXT_PATH: /
-      KK_BASE_URL: http://SERVER_IP:8013
+      # 部署环境相关值放在同目录 .env(不入库),见 .env.example;
+      # 未配置时 compose 会直接报错提醒,避免带错误配置启动
+      KK_BASE_URL: ${KK_BASE_URL:?请在 deploy/.env 中配置 KK_BASE_URL}
       KK_FILE_DIR: /opt/files
       # 开启文件上传
       KK_FILE_UPLOAD_DISABLE: false
