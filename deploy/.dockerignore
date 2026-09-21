@@ -1,0 +1,6 @@
+# Keep the app-image build context minimal: only the Dockerfile and the
+# release tar.gz are needed. Everything else (fonts, base image tar, compose
+# file, docs) would otherwise be sent to the Docker daemon on every build.
+*
+!Dockerfile
+!kkFileView-*.tar.gz

@@ -89,34 +89,31 @@ docker save keking/kkfileview-base:5.0.0 -o kkfileview-base.tar
 docker load -i kkfileview-base.tar
 ```
 
-## 第三步：构建应用镜像
+## 第三步：构建镜像并启动服务
 
-将编译产物复制到 deploy 目录，然后构建：
+将编译产物复制到 deploy 目录，一条命令完成应用镜像构建与启动（compose 中已声明 `build` 与 `image`，构建产物自动打上 `kkfileview-custom:<版本>` tag）：
 
 ```shell
 cp server/target/kkFileView-*.tar.gz deploy/
 cd deploy
-docker build --tag kkfileview-custom:5.0.2 .
+docker compose up -d --build
 ```
 
+> ⚠️ 前提：基础镜像（第二步）已在本地 Docker 中存在（`keking/kkfileview-base:5.0.0`），应用镜像构建依赖它。
+>
 > ⚠️ deploy 目录内**只保留一份** `kkFileView-*.tar.gz`：旧版本产物先删除再复制新版本，否则 Dockerfile 中的通配符会匹配到多个文件导致构建失败。
 >
-> ⚠️ 镜像 tag 使用自有命名 `kkfileview-custom:<版本>`，不要使用官方 `keking/kkfileview:*` 同名 tag，避免与 Docker Hub 官方镜像混淆。
-
-## 第四步：启动服务
-
-确认 `docker-compose.yml` 中镜像 tag 与上一步构建的一致，然后启动：
-
-```shell
-docker compose up -d
-```
+> ⚠️ 镜像 tag 使用自有命名 `kkfileview-custom:<版本>`（在 `docker-compose.yml` 的 `image` 字段维护），不要使用官方 `keking/kkfileview:*` 同名 tag，避免与 Docker Hub 官方镜像混淆。
+>
+> 构建上下文已由 `.dockerignore` 收敛为仅 Dockerfile 与 tar.gz，字体目录、基础镜像 tar 等不会发送给 Docker 守护进程。
 
 ### docker-compose.yml 说明
 
 ```yaml
 services:
   kkfileview:
-    image: kkfileview-custom:5.0.2          # 第三步构建的自建镜像
+    build: .                                    # 从本目录 Dockerfile 构建应用镜像
+    image: kkfileview-custom:5.0.2              # 构建产物的 tag
     hostname: "fileview"
     ports:
       - 8013:8013
@@ -156,10 +153,9 @@ git push origin master custom
 mvn clean package -DskipTests
 rm deploy/kkFileView-*.tar.gz                     # 清理旧产物
 cp server/target/kkFileView-<新版本号>.tar.gz deploy/
+# 修改 docker-compose.yml 中 image 的 tag 为新版本号
 cd deploy
-docker build --tag kkfileview-custom:<新版本号> .
-# 修改 docker-compose.yml 中 image 的 tag 后
-docker compose up -d
+docker compose up -d --build
 ```
 
 基础镜像（第二步）无需重建；`deploy/Dockerfile` 已做成版本无关，无需修改。

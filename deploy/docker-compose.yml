@@ -1,6 +1,9 @@
 services:
   kkfileview:
-    # 自建镜像，按 DEPLOY.md 第三步构建；避免使用官方同名 tag 造成混淆
+    # 由本目录 Dockerfile 构建；docker compose up -d --build 重建并打上 image 指定的 tag
+    build:
+      context: .
+      dockerfile: Dockerfile
     image: kkfileview-custom:5.0.2
     hostname: "fileview"
     ports:
