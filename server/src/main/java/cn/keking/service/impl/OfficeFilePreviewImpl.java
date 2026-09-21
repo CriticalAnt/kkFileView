@@ -21,6 +21,7 @@ import org.springframework.ui.Model;
 import org.springframework.util.ObjectUtils;
 import org.springframework.util.StringUtils;
 
+import java.io.File;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -91,7 +92,7 @@ public class OfficeFilePreviewImpl implements FilePreview {
             if (!ObjectUtils.isEmpty(filePassword)) {
                 jiami = pdftojpgservice.hasEncryptedPdfCacheSimple(outFilePath);
             }
-            if (forceUpdatedCache || !fileHandlerService.listConvertedFiles().containsKey(cacheName) || !ConfigConstants.isCacheEnabled()) {
+            if (forceUpdatedCache || !isConvertedFileCached(cacheName, outFilePath) || !ConfigConstants.isCacheEnabled()) {
                 if (jiami) {
                     return getPreviewType(model, fileAttribute, officePreviewType, cacheName, outFilePath);
                 }
@@ -134,6 +135,17 @@ public class OfficeFilePreviewImpl implements FilePreview {
         // 处理普通Office转PDF预览
         return handleRegularOfficePreview(model, fileAttribute, fileName, forceUpdatedCache, cacheName, outFilePath,
                 isHtmlView, userToken, filePassword);
+    }
+
+    /**
+     * A cache entry is only a hit when the converted file still exists on disk;
+     * otherwise fall through to re-download and re-convert so cache/disk
+     * divergence self-heals instead of serving a 404.
+     */
+    private boolean isConvertedFileCached(String cacheName, String outFilePath) {
+        return fileHandlerService.listConvertedFiles().containsKey(cacheName)
+                && StringUtils.hasText(outFilePath)
+                && new File(outFilePath).exists();
     }
 
     /**
@@ -261,7 +273,7 @@ public class OfficeFilePreviewImpl implements FilePreview {
                                               String outFilePath, boolean isHtmlView, boolean userToken,
                                               String filePassword) {
 
-        if (forceUpdatedCache || !fileHandlerService.listConvertedFiles().containsKey(cacheName) || !ConfigConstants.isCacheEnabled()) {
+        if (forceUpdatedCache || !isConvertedFileCached(cacheName, outFilePath) || !ConfigConstants.isCacheEnabled()) {
             // 下载远程文件到本地，如果文件在本地已存在不会重复下载
             ReturnResponse<String> response = DownloadUtils.downLoad(fileAttribute, fileName);
             if (response.isFailure()) {

@@ -30,8 +30,11 @@ public class SchedulerCleanConfig {
     @Scheduled(cron = "${cache.clean.cron:0 0 3 * * ?}")
     public void clean() {
         logger.info("Cache clean start");
-        cacheService.cleanCache();
+        // Delete files before clearing caches: a conversion finishing mid-clean can then
+        // only leave a cache-miss-with-file (harmless reconvert), never the reverse —
+        // a cache entry whose file was just deleted (serves 404 until restart).
         KkFileUtils.deleteDirectory(fileDir);
+        cacheService.cleanCache();
         logger.info("Cache clean end");
     }
 }
