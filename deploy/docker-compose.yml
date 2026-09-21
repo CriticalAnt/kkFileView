@@ -19,7 +19,8 @@ services:
       KK_FILE_DIR: /opt/files
       # 开启文件上传
       KK_FILE_UPLOAD_DISABLE: false
-      KK_TRUST_HOST: "*"
+      # 信任主机白名单:可在 .env 中用 KK_TRUST_HOST 覆盖(推荐收紧到具体主机)
+      KK_TRUST_HOST: ${KK_TRUST_HOST:-*}
     volumes:
       - /opt/kkfileview/files:/opt/files
     privileged: true
